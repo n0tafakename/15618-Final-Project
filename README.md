@@ -9,10 +9,10 @@ Chess is a board game. A conservative lower-bound of the game-tree complexity fo
 My aim with this project is not to create a better chess engine than Google, by myself in 6 weeks. Rather, I would like to create a competent engine using a simple minimax search on the game tree. On its own, this algorithm does not perform particularly well because all the possible moves in each position limit the depth of search. My hope is that parallelizing the tree search will allow it to reach sufficient depth to compete against somewhat competent chess players.
 
 ## Challenge
-This is a difficult problem because the search space in the move tree for a chess game is massive (current "solved position" databases only have positions up to 8 remaining pieces), so without efficient paralleism the engine will perform poorly against humans.
+This is a difficult problem because the search space in the move tree for a chess game is massive (current "solved position" databases only have positions up to 8 remaining pieces). An efficient parallel search of the game tree should improve the performance of the engine in a time-constrained setting.
 
 ## Resources
-I plan on using the Gates Gluster for development and either the Gates Cluster or PSC for evaluation.
+I plan on using the Gates Gluster for development and evaluation.
 https://github.com/billforsternz/thc-chess-library is a general purpose chess library that implements the basic rules of chess and provides an api for a game. This will allow me to focus on the searching and position evaluation aspects of the game without having to spend tons of time just implementing the rules of chess.
 
 ## Goals and Deliverables
