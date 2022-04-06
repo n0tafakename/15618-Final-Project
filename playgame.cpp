@@ -14,9 +14,9 @@
 #include <unistd.h>
 #include <string>
 #include <vector>
+#include <iostream>
 #include "thc.h"
 #include "engine.h"
-#include <iostream>
 
 #define HUMAN  0
 #define ENGINE 1
@@ -61,6 +61,7 @@ int main(int argc, char *argv[]) {
     std::string mv_txt;
     std::string board_desc;
     thc::TERMINAL eval_penultimate_position;
+    thc::DRAWTYPE draw_type;
     int move_was_legal = 0;
     display_position(cr, "");
     do {
@@ -80,14 +81,14 @@ int main(int argc, char *argv[]) {
         else
         {
             // get engine move
-            printf("Unimplemented\n");
+            getBestMove(cr, mv, -1, true);
         }
 
         // play move, print board
         cr.PlayMove(mv);
         display_position(cr, "");
         cr.Evaluate(eval_penultimate_position);
-        if (eval_penultimate_position != thc::NOT_TERMINAL)
+        if (eval_penultimate_position != thc::NOT_TERMINAL || cr.IsDraw(true, draw_type))
             break;
 
         if (black_player == HUMAN) {
@@ -103,17 +104,18 @@ int main(int argc, char *argv[]) {
             } while (!move_was_legal);
         } else {
             // get engine move
-            printf("Unimplemented\n");
+            getBestMove(cr, mv, -1, false);
         }
 
         // input move
         cr.PlayMove(mv);
         display_position(cr, "");
         cr.Evaluate(eval_penultimate_position);
-        if (eval_penultimate_position != thc::NOT_TERMINAL)
+        if (eval_penultimate_position != thc::NOT_TERMINAL || cr.IsDraw(false, draw_type))
             break;
 
     } while (eval_penultimate_position == thc::NOT_TERMINAL);
+
     std::cout << "Game finished" << std::endl;
     switch (eval_penultimate_position) {
         case thc::TERMINAL_BCHECKMATE:
@@ -129,4 +131,6 @@ int main(int argc, char *argv[]) {
             std::cout << "Black is stalemated" << std::endl;
             break;
     }
+    if (draw_type != thc::NOT_DRAW)
+        std::cout << "Draw" << std::endl;
 }

@@ -1,13 +1,10 @@
-# APP_NAME=demo
-# OBJS += demo.o
-
 APP_NAME=playchess
 OBJS += thc.o
 OBJS += playgame.o
 OBJS += engine.o
 
 CXX = g++ -m64 -std=c++11
-CXXFLAGS = -I. -O3 -Wall -Wno-unknown-pragmas -g
+CXXFLAGS = -I. -O3 -Wall -g
 
 default: $(APP_NAME)
 
