@@ -1,8 +1,7 @@
 #include "thc.h"
 #include "engine.h"
 #include <stdlib.h>
-
-#define RANDOM_MOVE 0
+#include <chrono>
 
 enum {
     PAWN = 0,
@@ -13,6 +12,9 @@ enum {
     KING = 5,
     NUM_PIECES = 6,
 };
+
+// debug variables
+unsigned long move_count;
 
 static void getMaterialCount(thc::ChessRules &cr, uint8_t *whitePieces, uint8_t *blackPieces)
 {
@@ -75,26 +77,29 @@ static double evaluatePositionFast(thc::ChessRules &cr)
     score += 5 * (whitePieces[ROOK] - blackPieces[ROOK]);
     score += 3.1 * (whitePieces[BISHOP] - blackPieces[BISHOP]);
     score += 3 * (whitePieces[KNIGHT] - blackPieces[KNIGHT]);
-    score += 3 * (whitePieces[PAWN] - blackPieces[PAWN]);
+    score += 1 * (whitePieces[PAWN] - blackPieces[PAWN]);
 
     return score;
 }
 
-#if RANDOM_MOVE == 1
-void getBestMove(thc::ChessRules &cr, thc::Move &best_move, int max_time)
-{
-    thc::MOVELIST legal_moves;
-    cr.GenLegalMoveList(&legal_moves);
-    int best_move_idx = rand() % legal_moves.count;
-    best_move = legal_moves.moves[best_move_idx];
-    printf("Using random move %d out of %d\n", best_move_idx, legal_moves.count);
-}
-#else
-void getBestMove(thc::ChessRules &cr, thc::Move &best_move, int max_time, bool white)
+void getRandomMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, bool white)
 {
     thc::MOVELIST legal_moves;
     cr.GenLegalMoveList(&legal_moves);
     int best_move_idx = 0;
+    if (legal_moves.count > 0)
+        best_move_idx = rand() % legal_moves.count;
+    best_move = legal_moves.moves[best_move_idx];
+    printf("Using random move %d out of %d\n", best_move_idx, legal_moves.count);
+}
+
+double getGreedyMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, bool white)
+{
+    thc::MOVELIST legal_moves;
+    cr.GenLegalMoveList(&legal_moves);
+    int best_move_idx = 0;
+    if (legal_moves.count > 0)
+        best_move_idx = rand() % legal_moves.count;
     double best_score = white ? -1000 : 1000;
     double curr_score;
     for (int i = 0; i < legal_moves.count; i++)
@@ -109,5 +114,62 @@ void getBestMove(thc::ChessRules &cr, thc::Move &best_move, int max_time, bool w
         cr.PopMove(legal_moves.moves[i]);
     }
     best_move = legal_moves.moves[best_move_idx];
+    move_count += legal_moves.count;
+    return best_score;
 }
-#endif
+
+double minMaxIteration(thc::ChessRules &cr, thc::Move &best_move, int curr_depth, bool white)
+{
+    thc::MOVELIST legal_moves;
+    cr.GenLegalMoveList(&legal_moves);
+    int best_move_idx = 0;
+    if (legal_moves.count > 0)
+        best_move_idx = rand() % legal_moves.count;
+    double best_score = white ? -1000 : 1000;
+    double curr_score;
+
+    if (curr_depth == 0)
+    {
+        return getGreedyMove(cr, best_move, 0, white);
+    }
+    for (int i = 0; i < legal_moves.count; i++)
+    {
+        cr.PushMove(legal_moves.moves[i]);
+        curr_score = minMaxIteration(cr, best_move, curr_depth - 1, !white);
+        if ((white && (best_score < curr_score)) || (!white && (best_score > curr_score)))
+        {
+            best_move_idx = i;
+            best_score = curr_score;
+        }
+        cr.PopMove(legal_moves.moves[i]);
+    }
+
+    // not certain if this is correct because of pass by reference stuff
+    best_move = legal_moves.moves[best_move_idx];
+    return best_score;
+}
+
+void getMinMaxMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, bool white)
+{
+    
+    double best_eval = minMaxIteration(cr, best_move, max_depth, white);
+
+   
+    printf("Best move for %s has evaluation %lf\n", (white) ? "WHITE": "BLACK", best_eval);
+}
+
+void getBestMove(thc::ChessRules &cr, thc::Move &best_move, int engine_mode, int max_depth, bool white)
+{
+    using namespace std::chrono;
+    auto start = high_resolution_clock::now();
+    move_count = 0;
+    if (engine_mode == RANDOM_MOVE)
+        getRandomMove(cr, best_move, max_depth, white);
+    else if (engine_mode == GREEDY_MOVE)
+        getGreedyMove(cr, best_move, max_depth, white);
+    else
+        getMinMaxMove(cr, best_move, max_depth, white);
+
+    auto stop = high_resolution_clock::now();
+    printf("Considered %lu moves in %ldms\n", move_count, duration_cast<milliseconds>(stop - start).count());
+}

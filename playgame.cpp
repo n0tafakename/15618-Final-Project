@@ -11,6 +11,8 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
 #include <string>
 #include <vector>
@@ -33,29 +35,30 @@ void display_position( thc::ChessRules &cr, const std::string &description )
 int main(int argc, char *argv[]) {
     int white_player = HUMAN;
     int black_player = ENGINE;
-    int engine_type = 0;
-    int time_per_move = 10;
+    int engine_type = MINMAX_MOVE;
+    int engine_depth = 4;
     int opt = 0;
     do {
-        opt = getopt(argc, argv, "w:b:e:t");
+        opt = getopt(argc, argv, "w:b:e:t:");
         switch (opt) {
             case 'w':
-                white_player = atoi(optarg);
+                white_player = std::stoi(optarg);
                 break;
             case 'b':
-                black_player = atoi(optarg);
+                black_player = std::stoi(optarg);
                 break;
             case 'e':
-                engine_type = atoi(optarg);
+                engine_type = std::stoi(optarg);
                 break;
             case 't':
-                time_per_move = atoi(optarg);
+                engine_depth = std::stoi(optarg);
                 break;
             default:
                 break;
         }
     } while (opt != -1);
 
+    srand(time(NULL));
     thc::ChessRules cr;
     thc::Move mv;
     std::string mv_txt;
@@ -81,14 +84,18 @@ int main(int argc, char *argv[]) {
         else
         {
             // get engine move
-            getBestMove(cr, mv, -1, true);
+            getBestMove(cr, mv, engine_type, engine_depth, true);
         }
 
         // play move, print board
         cr.PlayMove(mv);
         display_position(cr, "");
         cr.Evaluate(eval_penultimate_position);
-        if (eval_penultimate_position != thc::NOT_TERMINAL || cr.IsDraw(true, draw_type))
+        cr.IsDraw(false, draw_type);
+        if (eval_penultimate_position != thc::NOT_TERMINAL ||
+            draw_type == thc::DRAWTYPE_REPITITION ||
+            draw_type == thc::DRAWTYPE_50MOVE ||
+            draw_type == thc::DRAWTYPE_INSUFFICIENT_AUTO)
             break;
 
         if (black_player == HUMAN) {
@@ -103,15 +110,19 @@ int main(int argc, char *argv[]) {
                 }
             } while (!move_was_legal);
         } else {
-            // get engine move
-            getBestMove(cr, mv, -1, false);
+            // get engine move (HARDCODED for now)
+            getBestMove(cr, mv, GREEDY_MOVE, engine_depth, false);
         }
 
         // input move
         cr.PlayMove(mv);
         display_position(cr, "");
         cr.Evaluate(eval_penultimate_position);
-        if (eval_penultimate_position != thc::NOT_TERMINAL || cr.IsDraw(false, draw_type))
+        cr.IsDraw(true, draw_type);
+        if (eval_penultimate_position != thc::NOT_TERMINAL ||
+            draw_type == thc::DRAWTYPE_REPITITION ||
+            draw_type == thc::DRAWTYPE_50MOVE ||
+            draw_type == thc::DRAWTYPE_INSUFFICIENT_AUTO)
             break;
 
     } while (eval_penultimate_position == thc::NOT_TERMINAL);
@@ -132,5 +143,5 @@ int main(int argc, char *argv[]) {
             break;
     }
     if (draw_type != thc::NOT_DRAW)
-        std::cout << "Draw" << std::endl;
+        std::cout << "Draw type: " << draw_type << std::endl;
 }
