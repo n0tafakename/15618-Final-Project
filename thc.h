@@ -688,8 +688,8 @@ public:
 
 
     // Use leaf evaluator to generate a sorted move list
-    void GenLegalMoveListSorted( MOVELIST *list );
-    void GenLegalMoveListSorted( std::vector<Move> &moves );
+    int GenLegalMoveListSorted( MOVELIST *list );
+    int GenLegalMoveListSorted( std::vector<Move> &moves );
 
     // Evaluate a position, leaf node (useful for playing programs)
     void EvaluateLeaf( int &material, int &positional );

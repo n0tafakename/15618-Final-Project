@@ -2,6 +2,7 @@
 #include "engine.h"
 #include <stdlib.h>
 #include <chrono>
+#include <cfloat>
 
 enum {
     PAWN = 0,
@@ -93,7 +94,7 @@ void getRandomMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, boo
     printf("Using random move %d out of %d\n", best_move_idx, legal_moves.count);
 }
 
-double getGreedyMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, bool white)
+double getGreedyMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, double alpha, double beta, bool white)
 {
     thc::MOVELIST legal_moves;
     cr.GenLegalMoveList(&legal_moves);
@@ -106,20 +107,36 @@ double getGreedyMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, b
     {
         cr.PushMove(legal_moves.moves[i]);
         curr_score = evaluatePositionFast(cr);
-        if ((white && (best_score < curr_score)) || (!white && (best_score > curr_score)))
+        cr.PopMove(legal_moves.moves[i]);
+        if (white && (best_score < curr_score))
         {
             best_move_idx = i;
             best_score = curr_score;
+            alpha = (best_score > alpha) ? best_score : alpha;
         }
-        cr.PopMove(legal_moves.moves[i]);
+        if (!white && (best_score > curr_score))
+        {
+            best_move_idx = i;
+            best_score = curr_score;
+            beta = (best_score < beta) ? best_score : beta;
+        }
+        if (beta <= alpha)
+        {
+            break;
+        }
     }
     best_move = legal_moves.moves[best_move_idx];
     move_count += legal_moves.count;
     return best_score;
 }
 
-double minMaxIteration(thc::ChessRules &cr, thc::Move &best_move, int curr_depth, bool white)
+double minMaxIteration(thc::ChessRules &cr, thc::Move &best_move, int curr_depth, double alpha, double beta, bool white)
 {
+    if (curr_depth == 0)
+    {
+        return getGreedyMove(cr, best_move, 0, alpha, beta, white);
+    }
+
     thc::MOVELIST legal_moves;
     cr.GenLegalMoveList(&legal_moves);
     int best_move_idx = 0;
@@ -128,20 +145,27 @@ double minMaxIteration(thc::ChessRules &cr, thc::Move &best_move, int curr_depth
     double best_score = white ? -1000 : 1000;
     double curr_score;
 
-    if (curr_depth == 0)
-    {
-        return getGreedyMove(cr, best_move, 0, white);
-    }
     for (int i = 0; i < legal_moves.count; i++)
     {
         cr.PushMove(legal_moves.moves[i]);
-        curr_score = minMaxIteration(cr, best_move, curr_depth - 1, !white);
-        if ((white && (best_score < curr_score)) || (!white && (best_score > curr_score)))
+        curr_score = minMaxIteration(cr, best_move, curr_depth - 1, alpha, beta, !white);
+        cr.PopMove(legal_moves.moves[i]);
+        if (white && (best_score < curr_score))
         {
             best_move_idx = i;
             best_score = curr_score;
+            alpha = (best_score > alpha) ? best_score : alpha;
         }
-        cr.PopMove(legal_moves.moves[i]);
+        if (!white && (best_score > curr_score))
+        {
+            best_move_idx = i;
+            best_score = curr_score;
+            beta = (best_score < beta) ? best_score : beta;
+        }
+        if (beta <= alpha)
+        {
+            break;
+        }
     }
 
     // not certain if this is correct because of pass by reference stuff
@@ -152,7 +176,7 @@ double minMaxIteration(thc::ChessRules &cr, thc::Move &best_move, int curr_depth
 void getMinMaxMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, bool white)
 {
     
-    double best_eval = minMaxIteration(cr, best_move, max_depth, white);
+    double best_eval = minMaxIteration(cr, best_move, max_depth, DBL_MIN, DBL_MAX, white);
 
    
     printf("Best move for %s has evaluation %lf\n", (white) ? "WHITE": "BLACK", best_eval);
@@ -166,7 +190,7 @@ void getBestMove(thc::ChessRules &cr, thc::Move &best_move, int engine_mode, int
     if (engine_mode == RANDOM_MOVE)
         getRandomMove(cr, best_move, max_depth, white);
     else if (engine_mode == GREEDY_MOVE)
-        getGreedyMove(cr, best_move, max_depth, white);
+        getGreedyMove(cr, best_move, max_depth, DBL_MIN, DBL_MAX, white);
     else
         getMinMaxMove(cr, best_move, max_depth, white);
 

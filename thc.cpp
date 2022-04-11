@@ -5660,12 +5660,13 @@ const int MATERIAL_MIDDLE  = (500 + ((8*10+4*30+2*50+90)*1)/3);
 /****************************************************************************
  * Create a list of all legal moves (sorted strongest first, public version)
  ****************************************************************************/
-void ChessEvaluation::GenLegalMoveListSorted( vector<Move> &moves )
+int ChessEvaluation::GenLegalMoveListSorted( vector<Move> &moves )
 {
     MOVELIST movelist;
-    GenLegalMoveListSorted( &movelist );
+    int ret = GenLegalMoveListSorted( &movelist );
     for( int i=0; i<movelist.count; i++ )
         moves.push_back( movelist.moves[i] );
+    return ret;
 }
 
 /****************************************************************************
@@ -5680,7 +5681,7 @@ struct MOVE_IDX
     bool operator >  (const MOVE_IDX& arg) const { return score >  arg.score; }
     bool operator == (const MOVE_IDX& arg) const { return score == arg.score; }
 };
-void ChessEvaluation::GenLegalMoveListSorted( MOVELIST *list )
+int ChessEvaluation::GenLegalMoveListSorted( MOVELIST *list )
 {
     int i, j;
     bool okay;
@@ -5732,6 +5733,7 @@ void ChessEvaluation::GenLegalMoveListSorted( MOVELIST *list )
         list->moves[i] = list2.moves[x.idx];
     }
     list->count  = i;
+    return sortable[0].score;
 }
 
 /****************************************************************************

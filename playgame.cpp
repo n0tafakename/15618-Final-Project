@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
             } while (!move_was_legal);
         } else {
             // get engine move (HARDCODED for now)
-            getBestMove(cr, mv, GREEDY_MOVE, engine_depth, false);
+            getBestMove(cr, mv, RANDOM_MOVE, engine_depth, false);
         }
 
         // input move
