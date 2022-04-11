@@ -1,5 +1,6 @@
 # 15618-Final-Project
 
+# Proposal
 ## Summary
 This project is a chess engine. The main idea is to run minimax on the tree of possible moves in a game to select the best move for a side. To improve performance, the tree search will be parallelized using OpenMP.
 
@@ -37,3 +38,11 @@ https://github.com/billforsternz/thc-chess-library is a general purpose chess li
   
   Week 5 -
   Time permitting, address bottlenecks from the previous solution, try a solution using MPI and compare to the OpenMP solution, prehaps incorporate endgame tablebase lookups for better endgame performance.
+
+# Milestone Report
+So far, I have implemented a sequential (not parallel) chess AI that does a minimax tree search with alpha-beta pruning. It uses a simple leaf evaluation function that only considers the number of pieces on the board. This AI can search at depth 5 with under 5 seconds per move and depth 6 with under 30 seconds per move. It plays relatively well in the middle and end game, but plays poorly in the opening because the search depth is too shallow for any material differences to be seen. I believe that I will be able to reach my 100% target from the project proposal, but probably not the 125% target. I would like to focus more on a good OpenMP parallelization than trying to additionally make an MPI implementation to compare against. For the poster session I plan to show graphs of the speedup from the parallelization, and possibly a demo where someone can play against the AI.
+
+My remaining goals before the final presentation are -
+* Improve the leaf evaluation function to incorporate piece mobility for better solution quality when pieces can not be easily taken. This is a simple count of the available moves the AI will have after playing a move. This is costly but can be parallelized.
+* Parallelize the minimax algorithm using OpenMP, identify performance bottlenecks, and attempt to optimize.
+* Create an evaluation environment for the AI. I'm thinking that I'll have a few different fixed board positions and measure the time taken to compute the next move at various depths. An interesting, but less qualitative measure, could be having the AI play against players of various skill levels and recording the results.
