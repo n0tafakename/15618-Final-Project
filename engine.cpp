@@ -80,6 +80,8 @@ static double evaluatePositionFast(thc::ChessRules &cr)
     score += 3 * (whitePieces[KNIGHT] - blackPieces[KNIGHT]);
     score += 1 * (whitePieces[PAWN] - blackPieces[PAWN]);
 
+    // could consider piece mobility, but not cheap to compute
+
     return score;
 }
 
@@ -137,6 +139,8 @@ double minMaxIteration(thc::ChessRules &cr, thc::Move &best_move, int curr_depth
         return getGreedyMove(cr, best_move, 0, alpha, beta, white);
     }
 
+    // printf("Curr depth: %d\n", curr_depth);
+
     thc::MOVELIST legal_moves;
     cr.GenLegalMoveList(&legal_moves);
     int best_move_idx = 0;
@@ -164,6 +168,7 @@ double minMaxIteration(thc::ChessRules &cr, thc::Move &best_move, int curr_depth
         }
         if (beta <= alpha)
         {
+            // printf("Depth %d: Pruning with beta=%lf, alpha=%lf\n", curr_depth, beta, alpha);
             break;
         }
     }
@@ -177,8 +182,6 @@ void getMinMaxMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, boo
 {
     
     double best_eval = minMaxIteration(cr, best_move, max_depth, DBL_MIN, DBL_MAX, white);
-
-   
     printf("Best move for %s has evaluation %lf\n", (white) ? "WHITE": "BLACK", best_eval);
 }
 
