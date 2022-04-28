@@ -16,6 +16,9 @@ enum {
 
 // debug variables
 unsigned long move_count;
+unsigned long greedy_call_count;
+unsigned long minmax_call_count;
+unsigned long parallel_call_count;
 
 static void getMaterialCount(thc::ChessRules &cr, uint8_t *whitePieces, uint8_t *blackPieces)
 {
@@ -96,6 +99,15 @@ void getRandomMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, boo
     printf("Using random move %d out of %d\n", best_move_idx, legal_moves.count);
 }
 
+static void display_position( thc::ChessRules &cr, const std::string &description )
+{
+    std::string fen = cr.ForsythPublish();
+    std::string s = cr.ToDebugStr();
+    printf( "%s\n", description.c_str() );
+    printf( "FEN (Forsyth Edwards Notation) = %s\n", fen.c_str() );
+    printf( "Position = %s\n", s.c_str() );
+}
+
 double getGreedyMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, double alpha, double beta, bool white)
 {
     thc::MOVELIST legal_moves;
@@ -105,6 +117,9 @@ double getGreedyMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, d
         best_move_idx = rand() % legal_moves.count;
     double best_score = white ? -1000 : 1000;
     double curr_score;
+
+    // display_position(cr, "Position passed to getGreedyMove");
+
     for (int i = 0; i < legal_moves.count; i++)
     {
         cr.PushMove(legal_moves.moves[i]);
@@ -128,18 +143,22 @@ double getGreedyMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, d
         }
     }
     best_move = legal_moves.moves[best_move_idx];
-    move_count += legal_moves.count;
+    #pragma omp critical
+    {
+        // printf("Adding %d moves to count\n", legal_moves.count);
+        move_count += legal_moves.count;
+        greedy_call_count += 1;
+    }
     return best_score;
 }
 
 double minMaxIteration(thc::ChessRules &cr, thc::Move &best_move, int curr_depth, double alpha, double beta, bool white)
 {
+    minmax_call_count += 1;
     if (curr_depth == 0)
     {
         return getGreedyMove(cr, best_move, 0, alpha, beta, white);
     }
-
-    // printf("Curr depth: %d\n", curr_depth);
 
     thc::MOVELIST legal_moves;
     cr.GenLegalMoveList(&legal_moves);
@@ -148,6 +167,8 @@ double minMaxIteration(thc::ChessRules &cr, thc::Move &best_move, int curr_depth
         best_move_idx = rand() % legal_moves.count;
     double best_score = white ? -1000 : 1000;
     double curr_score;
+
+    // printf("Curr depth: %d, %d legal moves\n", curr_depth, legal_moves.count);
 
     for (int i = 0; i < legal_moves.count; i++)
     {
@@ -158,30 +179,80 @@ double minMaxIteration(thc::ChessRules &cr, thc::Move &best_move, int curr_depth
         {
             best_move_idx = i;
             best_score = curr_score;
-            alpha = (best_score > alpha) ? best_score : alpha;
+            // alpha = (best_score > alpha) ? best_score : alpha;
         }
         if (!white && (best_score > curr_score))
         {
             best_move_idx = i;
             best_score = curr_score;
-            beta = (best_score < beta) ? best_score : beta;
+            // beta = (best_score < beta) ? best_score : beta;
         }
-        if (beta <= alpha)
-        {
-            // printf("Depth %d: Pruning with beta=%lf, alpha=%lf\n", curr_depth, beta, alpha);
-            break;
-        }
+        // if (beta <= alpha)
+        // {
+        //     // printf("Depth %d: Pruning with beta=%lf, alpha=%lf\n", curr_depth, beta, alpha);
+        //     break;
+        // }
     }
 
-    // not certain if this is correct because of pass by reference stuff
     best_move = legal_moves.moves[best_move_idx];
     return best_score;
 }
 
 void getMinMaxMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, bool white)
 {
-    
     double best_eval = minMaxIteration(cr, best_move, max_depth, DBL_MIN, DBL_MAX, white);
+    printf("Best move for %s has evaluation %lf\n", (white) ? "WHITE": "BLACK", best_eval);
+}
+
+double minMaxIterationParallel(thc::ChessRules cr, thc::Move &best_move, int curr_depth, double alpha, double beta, bool white)
+{
+    parallel_call_count += 1;
+    if (curr_depth == 0)
+    {
+        return getGreedyMove(cr, best_move, 0, alpha, beta, white);
+    }
+
+    thc::MOVELIST legal_moves;
+    cr.GenLegalMoveList(&legal_moves);
+    int best_move_idx = 0;
+    if (legal_moves.count > 0)
+        best_move_idx = rand() % legal_moves.count;
+    double best_score = white ? -1000 : 1000;
+
+    // printf("Curr depth: %d, %d legal moves\n", curr_depth, legal_moves.count);
+
+    int n_threads = 4;
+    thc::Move local_best_move = best_move;
+    #pragma omp parallel for default(shared) private(local_best_move) num_threads(n_threads)
+    for (int i = 0; i < legal_moves.count; i++)
+    {
+        thc::ChessRules local_cr = cr;
+        local_cr.PushMove(legal_moves.moves[i]);
+        double curr_score = minMaxIteration(local_cr, local_best_move, curr_depth - 1, alpha, beta, !white);
+        local_cr.PopMove(legal_moves.moves[i]);
+        #pragma omp critical
+        {
+            if (white && (best_score < curr_score))
+            {
+                best_move_idx = i;
+                best_score = curr_score;
+            }
+            if (!white && (best_score > curr_score))
+            {
+                best_move_idx = i;
+                best_score = curr_score;
+            }
+        }
+    }
+
+    best_move = legal_moves.moves[best_move_idx];
+    return best_score;
+}
+
+void getMinMaxMoveParallel(thc::ChessRules &cr, thc::Move &best_move, int max_depth, bool white)
+{
+    
+    double best_eval = minMaxIterationParallel(cr, best_move, max_depth, DBL_MIN, DBL_MAX, white);
     printf("Best move for %s has evaluation %lf\n", (white) ? "WHITE": "BLACK", best_eval);
 }
 
@@ -189,14 +260,24 @@ void getBestMove(thc::ChessRules &cr, thc::Move &best_move, int engine_mode, int
 {
     using namespace std::chrono;
     auto start = high_resolution_clock::now();
+    
     move_count = 0;
+    greedy_call_count = 0;
+    minmax_call_count = 0;
+    parallel_call_count = 0;
+    
     if (engine_mode == RANDOM_MOVE)
         getRandomMove(cr, best_move, max_depth, white);
     else if (engine_mode == GREEDY_MOVE)
         getGreedyMove(cr, best_move, max_depth, DBL_MIN, DBL_MAX, white);
-    else
+    else if (engine_mode == MINMAX_MOVE)
         getMinMaxMove(cr, best_move, max_depth, white);
+    else
+        getMinMaxMoveParallel(cr, best_move, max_depth, white);
 
     auto stop = high_resolution_clock::now();
     printf("Considered %lu moves in %ldms\n", move_count, duration_cast<milliseconds>(stop - start).count());
+    printf("Greedy call count: %lu\n", greedy_call_count);
+    printf("Minmax call count: %lu\n", minmax_call_count);
+    printf("Parallel call count: %lu\n", parallel_call_count);
 }

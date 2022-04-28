@@ -2,9 +2,10 @@
 #define ENGINE_H
 #include "thc.h"
 
-#define GREEDY_MOVE 0
-#define RANDOM_MOVE 1
-#define MINMAX_MOVE 2
+#define GREEDY_MOVE   0
+#define RANDOM_MOVE   1
+#define MINMAX_MOVE   2
+#define PARALLEL_MOVE 3
 
 /*
     getLegalMoves(game) // implemented by the API but might want to parallelize

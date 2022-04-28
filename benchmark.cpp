@@ -51,9 +51,63 @@ void setup_benchmark_najdorf(thc::ChessRules &cr)
     cr.PlayMove(mv);
 }
 
-void run_benchmark(thc::ChessRules &cr, thc::Move &mv, int depth, bool white)
+void setup_benchmark_puzzle(thc::ChessRules &cr)
+{
+    thc::Move mv;
+    mv.NaturalIn(&cr, "g3");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "e5");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "Bg2");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "d5");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "e3");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "c5");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "c3");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "f5");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "Ne2");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "Nc6");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "O-O");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "Nf6");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "d4");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "cxd4");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "exd4");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "e4");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "f3");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "Bd6");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "Nf4");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "Qc7");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "fxe4");
+    cr.PlayMove(mv);
+    mv.NaturalIn(&cr, "fxe4");
+    cr.PlayMove(mv);
+}
+
+void run_benchmark_sequential(thc::ChessRules &cr, thc::Move &mv, int depth, bool white)
 {
     getBestMove(cr, mv, MINMAX_MOVE, depth, white);
+}
+
+void run_benchmark_parallel(thc::ChessRules &cr, thc::Move &mv, int depth, bool white)
+{
+    getBestMove(cr, mv, PARALLEL_MOVE, depth, white);
 }
 
 int main(int argc, char *argv[])
@@ -67,7 +121,7 @@ int main(int argc, char *argv[])
 
     int opt = 0;
     do {
-        opt = getopt(argc, argv, "t:d:s:");
+        opt = getopt(argc, argv, "t:d:s");
         switch (opt) {
             case 't':
                 test = std::stoi(optarg);
@@ -82,13 +136,18 @@ int main(int argc, char *argv[])
                 break;
         }
     } while (opt != -1);
-    
+
     // setup test
     switch (test)
     {
         case 1:
             white = true;
             setup_benchmark_najdorf(cr);
+            break;
+        case 2:
+            white = true;
+            setup_benchmark_puzzle(cr);
+            // correct move should be Nxd5
             break;
         default:
             white = true;
@@ -98,10 +157,22 @@ int main(int argc, char *argv[])
     display_position(cr, "Starting Position");
 
     using namespace std::chrono;
-    auto start = high_resolution_clock::now();
-    
-    run_benchmark(cr, mv, depth, white);
+    long sequential_dur;
+    if (skip_sequential == false)
+    {
+        auto start = high_resolution_clock::now();
+        run_benchmark_sequential(cr, mv, depth, white);
+        auto stop = high_resolution_clock::now();
+        sequential_dur = duration_cast<milliseconds>(stop - start).count();
+        printf("Sequential: Found next move '%s' in %ldms\n\n", mv.NaturalOut(&cr).c_str(), sequential_dur);
+    }
 
+    auto start = high_resolution_clock::now();
+    run_benchmark_parallel(cr, mv, depth, white);
     auto stop = high_resolution_clock::now();
-    printf("Found next move '%s' in %ldms\n", mv.NaturalOut(&cr).c_str(), duration_cast<milliseconds>(stop - start).count());
+    long parallel_dur = duration_cast<milliseconds>(stop - start).count();
+    printf("Parallel: Found next move '%s' in %ldms\n\n", mv.NaturalOut(&cr).c_str(), parallel_dur);
+
+    if (skip_sequential == false)
+        printf("Speedup: %lf\n", (double)((double)sequential_dur / (double)parallel_dur));
 }
