@@ -66,7 +66,6 @@ static void getMaterialCount(thc::ChessRules &cr, uint8_t *whitePieces, uint8_t 
     }
 }
 
-// evaluation functions from thc library are very complicated
 // simple material evaluation, doesn't consider positional features at all
 static double evaluatePositionFast(thc::ChessRules &cr)
 {
@@ -204,14 +203,8 @@ void getMinMaxMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, boo
     printf("Best move for %s has evaluation %lf\n", (white) ? "WHITE": "BLACK", best_eval);
 }
 
-double minMaxIterationParallel(thc::ChessRules cr, thc::Move &best_move, int curr_depth, double alpha, double beta, int n_threads, bool white)
+double getGreedyMoveParallel(thc::ChessRules &cr, thc::Move &best_move, int max_depth, double alpha, double beta, int n_threads, bool white)
 {
-    parallel_call_count += 1;
-    if (curr_depth == 0)
-    {
-        return getGreedyMove(cr, best_move, 0, alpha, beta, white);
-    }
-
     thc::MOVELIST legal_moves;
     cr.GenLegalMoveList(&legal_moves);
     int best_move_idx = 0;
@@ -219,18 +212,17 @@ double minMaxIterationParallel(thc::ChessRules cr, thc::Move &best_move, int cur
         best_move_idx = rand() % legal_moves.count;
     double best_score = white ? -1000 : 1000;
 
-    // printf("Curr depth: %d, %d legal moves\n", curr_depth, legal_moves.count);
+    // display_position(cr, "Position passed to getGreedyMove");
 
-    thc::Move local_best_move = best_move;
     volatile bool flag = false;
-    #pragma omp parallel for default(shared) private(local_best_move) num_threads(n_threads)
+    #pragma omp parallel for default(shared) num_threads(n_threads)
     for (int i = 0; i < legal_moves.count; i++)
     {
         if (flag) continue;
 
         thc::ChessRules local_cr = cr;
         local_cr.PushMove(legal_moves.moves[i]);
-        double curr_score = minMaxIteration(local_cr, local_best_move, curr_depth - 1, alpha, beta, !white);
+        double curr_score = evaluatePositionFast(local_cr);
         local_cr.PopMove(legal_moves.moves[i]);
         #pragma omp critical
         {
@@ -251,6 +243,58 @@ double minMaxIterationParallel(thc::ChessRules cr, thc::Move &best_move, int cur
                 // printf("Depth %d: Pruning with beta=%lf, alpha=%lf\n", curr_depth, beta, alpha);
                 flag = true;
             }
+        }
+    }
+
+    best_move = legal_moves.moves[best_move_idx];
+    #pragma omp critical
+    {
+        // printf("Adding %d moves to count\n", legal_moves.count);
+        move_count += legal_moves.count;
+        greedy_call_count += 1;
+    }
+    return best_score;
+}
+
+double minMaxIterationParallel(thc::ChessRules cr, thc::Move &best_move, int curr_depth, double alpha, double beta, int n_threads, bool white)
+{
+    parallel_call_count += 1;
+    if (curr_depth == 0)
+    {
+        return getGreedyMoveParallel(cr, best_move, 0, alpha, beta, n_threads, white);
+    }
+
+    thc::MOVELIST legal_moves;
+    cr.GenLegalMoveList(&legal_moves);
+    int best_move_idx = 0;
+    if (legal_moves.count > 0)
+        best_move_idx = rand() % legal_moves.count;
+    double best_score = white ? -1000 : 1000;
+
+    // printf("Curr depth: %d, %d legal moves\n", curr_depth, legal_moves.count);
+
+    for (int i = 0; i < legal_moves.count; i++)
+    {
+        cr.PushMove(legal_moves.moves[i]);
+        double curr_score = minMaxIterationParallel(cr, best_move, curr_depth - 1, alpha, beta, n_threads, !white);
+        cr.PopMove(legal_moves.moves[i]);
+
+        if (white && (best_score < curr_score))
+        {
+            best_move_idx = i;
+            best_score = curr_score;
+            alpha = (best_score > alpha) ? best_score : alpha;
+        }
+        if (!white && (best_score > curr_score))
+        {
+            best_move_idx = i;
+            best_score = curr_score;
+            beta = (best_score < beta) ? best_score : beta;
+        }
+        if (beta <= alpha)
+        {
+            // printf("Depth %d: Pruning with beta=%lf, alpha=%lf\n", curr_depth, beta, alpha);
+            break;
         }
     }
 
