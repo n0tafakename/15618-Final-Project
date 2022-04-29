@@ -179,19 +179,19 @@ double minMaxIteration(thc::ChessRules &cr, thc::Move &best_move, int curr_depth
         {
             best_move_idx = i;
             best_score = curr_score;
-            // alpha = (best_score > alpha) ? best_score : alpha;
+            alpha = (best_score > alpha) ? best_score : alpha;
         }
         if (!white && (best_score > curr_score))
         {
             best_move_idx = i;
             best_score = curr_score;
-            // beta = (best_score < beta) ? best_score : beta;
+            beta = (best_score < beta) ? best_score : beta;
         }
-        // if (beta <= alpha)
-        // {
-        //     // printf("Depth %d: Pruning with beta=%lf, alpha=%lf\n", curr_depth, beta, alpha);
-        //     break;
-        // }
+        if (beta <= alpha)
+        {
+            // printf("Depth %d: Pruning with beta=%lf, alpha=%lf\n", curr_depth, beta, alpha);
+            break;
+        }
     }
 
     best_move = legal_moves.moves[best_move_idx];
@@ -204,7 +204,7 @@ void getMinMaxMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, boo
     printf("Best move for %s has evaluation %lf\n", (white) ? "WHITE": "BLACK", best_eval);
 }
 
-double minMaxIterationParallel(thc::ChessRules cr, thc::Move &best_move, int curr_depth, double alpha, double beta, bool white)
+double minMaxIterationParallel(thc::ChessRules cr, thc::Move &best_move, int curr_depth, double alpha, double beta, int n_threads, bool white)
 {
     parallel_call_count += 1;
     if (curr_depth == 0)
@@ -221,11 +221,13 @@ double minMaxIterationParallel(thc::ChessRules cr, thc::Move &best_move, int cur
 
     // printf("Curr depth: %d, %d legal moves\n", curr_depth, legal_moves.count);
 
-    int n_threads = 4;
     thc::Move local_best_move = best_move;
+    volatile bool flag = false;
     #pragma omp parallel for default(shared) private(local_best_move) num_threads(n_threads)
     for (int i = 0; i < legal_moves.count; i++)
     {
+        if (flag) continue;
+
         thc::ChessRules local_cr = cr;
         local_cr.PushMove(legal_moves.moves[i]);
         double curr_score = minMaxIteration(local_cr, local_best_move, curr_depth - 1, alpha, beta, !white);
@@ -236,11 +238,18 @@ double minMaxIterationParallel(thc::ChessRules cr, thc::Move &best_move, int cur
             {
                 best_move_idx = i;
                 best_score = curr_score;
+                alpha = (best_score > alpha) ? best_score : alpha;
             }
             if (!white && (best_score > curr_score))
             {
                 best_move_idx = i;
                 best_score = curr_score;
+                beta = (best_score < beta) ? best_score : beta;
+            }
+            if (beta <= alpha)
+            {
+                // printf("Depth %d: Pruning with beta=%lf, alpha=%lf\n", curr_depth, beta, alpha);
+                flag = true;
             }
         }
     }
@@ -249,14 +258,14 @@ double minMaxIterationParallel(thc::ChessRules cr, thc::Move &best_move, int cur
     return best_score;
 }
 
-void getMinMaxMoveParallel(thc::ChessRules &cr, thc::Move &best_move, int max_depth, bool white)
+void getMinMaxMoveParallel(thc::ChessRules &cr, thc::Move &best_move, int max_depth, int n_threads, bool white)
 {
     
-    double best_eval = minMaxIterationParallel(cr, best_move, max_depth, DBL_MIN, DBL_MAX, white);
+    double best_eval = minMaxIterationParallel(cr, best_move, max_depth, DBL_MIN, DBL_MAX, n_threads, white);
     printf("Best move for %s has evaluation %lf\n", (white) ? "WHITE": "BLACK", best_eval);
 }
 
-void getBestMove(thc::ChessRules &cr, thc::Move &best_move, int engine_mode, int max_depth, bool white)
+void getBestMove(thc::ChessRules &cr, thc::Move &best_move, int engine_mode, int max_depth, int n_threads, bool white)
 {
     using namespace std::chrono;
     auto start = high_resolution_clock::now();
@@ -273,7 +282,7 @@ void getBestMove(thc::ChessRules &cr, thc::Move &best_move, int engine_mode, int
     else if (engine_mode == MINMAX_MOVE)
         getMinMaxMove(cr, best_move, max_depth, white);
     else
-        getMinMaxMoveParallel(cr, best_move, max_depth, white);
+        getMinMaxMoveParallel(cr, best_move, max_depth, n_threads, white);
 
     auto stop = high_resolution_clock::now();
     printf("Considered %lu moves in %ldms\n", move_count, duration_cast<milliseconds>(stop - start).count());

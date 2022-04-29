@@ -102,12 +102,12 @@ void setup_benchmark_puzzle(thc::ChessRules &cr)
 
 void run_benchmark_sequential(thc::ChessRules &cr, thc::Move &mv, int depth, bool white)
 {
-    getBestMove(cr, mv, MINMAX_MOVE, depth, white);
+    getBestMove(cr, mv, MINMAX_MOVE, depth, 1, white);
 }
 
-void run_benchmark_parallel(thc::ChessRules &cr, thc::Move &mv, int depth, bool white)
+void run_benchmark_parallel(thc::ChessRules &cr, thc::Move &mv, int depth, int n_threads, bool white)
 {
-    getBestMove(cr, mv, PARALLEL_MOVE, depth, white);
+    getBestMove(cr, mv, PARALLEL_MOVE, depth, n_threads, white);
 }
 
 int main(int argc, char *argv[])
@@ -118,10 +118,11 @@ int main(int argc, char *argv[])
     bool white = true;
     bool skip_sequential = false; // doesn't do anything yet
     int depth = 4;
+    int n_threads = 1;
 
     int opt = 0;
     do {
-        opt = getopt(argc, argv, "t:d:s");
+        opt = getopt(argc, argv, "t:d:n:s");
         switch (opt) {
             case 't':
                 test = std::stoi(optarg);
@@ -132,6 +133,8 @@ int main(int argc, char *argv[])
             case 's':
                 skip_sequential = true;
                 break;
+            case 'n':
+                n_threads = std::stoi(optarg);
             default:
                 break;
         }
@@ -153,7 +156,7 @@ int main(int argc, char *argv[])
             white = true;
             break;
     }
-    printf("Running benchmark %d at depth %d\n", test, depth);
+    printf("Running benchmark %d at depth %d with %d threads\n", test, depth, n_threads);
     display_position(cr, "Starting Position");
 
     using namespace std::chrono;
@@ -168,7 +171,7 @@ int main(int argc, char *argv[])
     }
 
     auto start = high_resolution_clock::now();
-    run_benchmark_parallel(cr, mv, depth, white);
+    run_benchmark_parallel(cr, mv, depth, n_threads, white);
     auto stop = high_resolution_clock::now();
     long parallel_dur = duration_cast<milliseconds>(stop - start).count();
     printf("Parallel: Found next move '%s' in %ldms\n\n", mv.NaturalOut(&cr).c_str(), parallel_dur);

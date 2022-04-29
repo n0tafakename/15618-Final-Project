@@ -12,6 +12,6 @@
     getBestMove(game, legal_moves)
  */
 
-void getBestMove(thc::ChessRules &cr, thc::Move &best_move, int engine_mode, int max_depth, bool white);
+void getBestMove(thc::ChessRules &cr, thc::Move &best_move, int engine_mode, int max_depth, int n_threads, bool white);
 
 #endif

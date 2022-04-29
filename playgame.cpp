@@ -37,9 +37,10 @@ int main(int argc, char *argv[]) {
     int black_player = ENGINE;
     int engine_type = MINMAX_MOVE;
     int engine_depth = 4;
+    int n_threads = 1;
     int opt = 0;
     do {
-        opt = getopt(argc, argv, "w:b:e:t:");
+        opt = getopt(argc, argv, "w:b:e:t:n:");
         switch (opt) {
             case 'w':
                 white_player = std::stoi(optarg);
@@ -52,6 +53,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 't':
                 engine_depth = std::stoi(optarg);
+                break;
+            case 'n':
+                n_threads = std::stoi(optarg);
                 break;
             default:
                 break;
@@ -84,7 +88,7 @@ int main(int argc, char *argv[]) {
         else
         {
             // get engine move
-            getBestMove(cr, mv, engine_type, engine_depth, true);
+            getBestMove(cr, mv, engine_type, engine_depth, n_threads, true);
         }
 
         // play move, print board
@@ -111,7 +115,7 @@ int main(int argc, char *argv[]) {
             } while (!move_was_legal);
         } else {
             // get engine move
-            getBestMove(cr, mv, engine_type, engine_depth, false);
+            getBestMove(cr, mv, engine_type, engine_depth, n_threads, false);
         }
 
         // input move
