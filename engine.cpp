@@ -215,7 +215,7 @@ double getGreedyMoveParallel(thc::ChessRules &cr, thc::Move &best_move, int max_
     // display_position(cr, "Position passed to getGreedyMove");
 
     volatile bool flag = false;
-    #pragma omp parallel for default(shared) num_threads(n_threads)
+    #pragma omp parallel for default(shared) num_threads(2)
     for (int i = 0; i < legal_moves.count; i++)
     {
         if (flag) continue;
@@ -273,28 +273,68 @@ double minMaxIterationParallel(thc::ChessRules cr, thc::Move &best_move, int cur
 
     // printf("Curr depth: %d, %d legal moves\n", curr_depth, legal_moves.count);
 
-    for (int i = 0; i < legal_moves.count; i++)
+    // begin parallelizing right above the leaves
+    if (curr_depth == 1)
     {
-        cr.PushMove(legal_moves.moves[i]);
-        double curr_score = minMaxIterationParallel(cr, best_move, curr_depth - 1, alpha, beta, n_threads, !white);
-        cr.PopMove(legal_moves.moves[i]);
+        thc::Move local_best_move = best_move;
+        volatile bool flag = false;
+        #pragma omp parallel for default(shared) private(local_best_move) num_threads(n_threads / 4)
+        for (int i = 0; i < legal_moves.count; i++)
+        {
+            if (flag) continue;
 
-        if (white && (best_score < curr_score))
-        {
-            best_move_idx = i;
-            best_score = curr_score;
-            alpha = (best_score > alpha) ? best_score : alpha;
+            thc::ChessRules local_cr = cr;
+            local_cr.PushMove(legal_moves.moves[i]);
+            double curr_score = getGreedyMoveParallel(local_cr, local_best_move, curr_depth - 1, alpha, beta, n_threads, !white);
+            local_cr.PopMove(legal_moves.moves[i]);
+            #pragma omp critical
+            {
+                if (white && (best_score < curr_score))
+                {
+                    best_move_idx = i;
+                    best_score = curr_score;
+                    alpha = (best_score > alpha) ? best_score : alpha;
+                }
+                if (!white && (best_score > curr_score))
+                {
+                    best_move_idx = i;
+                    best_score = curr_score;
+                    beta = (best_score < beta) ? best_score : beta;
+                }
+                if (beta <= alpha)
+                {
+                    // printf("Depth %d: Pruning with beta=%lf, alpha=%lf\n", curr_depth, beta, alpha);
+                    flag = true;
+                }
+            }
         }
-        if (!white && (best_score > curr_score))
+    }
+    // sequential to maximize ab pruning benefit
+    else
+    {
+        for (int i = 0; i < legal_moves.count; i++)
         {
-            best_move_idx = i;
-            best_score = curr_score;
-            beta = (best_score < beta) ? best_score : beta;
-        }
-        if (beta <= alpha)
-        {
-            // printf("Depth %d: Pruning with beta=%lf, alpha=%lf\n", curr_depth, beta, alpha);
-            break;
+            cr.PushMove(legal_moves.moves[i]);
+            double curr_score = minMaxIterationParallel(cr, best_move, curr_depth - 1, alpha, beta, n_threads, !white);
+            cr.PopMove(legal_moves.moves[i]);
+
+            if (white && (best_score < curr_score))
+            {
+                best_move_idx = i;
+                best_score = curr_score;
+                alpha = (best_score > alpha) ? best_score : alpha;
+            }
+            if (!white && (best_score > curr_score))
+            {
+                best_move_idx = i;
+                best_score = curr_score;
+                beta = (best_score < beta) ? best_score : beta;
+            }
+            if (beta <= alpha)
+            {
+                // printf("Depth %d: Pruning with beta=%lf, alpha=%lf\n", curr_depth, beta, alpha);
+                break;
+            }
         }
     }
 
@@ -304,7 +344,6 @@ double minMaxIterationParallel(thc::ChessRules cr, thc::Move &best_move, int cur
 
 void getMinMaxMoveParallel(thc::ChessRules &cr, thc::Move &best_move, int max_depth, int n_threads, bool white)
 {
-    
     double best_eval = minMaxIterationParallel(cr, best_move, max_depth, DBL_MIN, DBL_MAX, n_threads, white);
     printf("Best move for %s has evaluation %lf\n", (white) ? "WHITE": "BLACK", best_eval);
 }
