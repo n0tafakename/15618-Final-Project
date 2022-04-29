@@ -204,7 +204,7 @@ void getMinMaxMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, boo
     printf("Best move for %s has evaluation %lf\n", (white) ? "WHITE": "BLACK", best_eval);
 }
 
-double minMaxIterationParallel(thc::ChessRules cr, thc::Move &best_move, int curr_depth, double alpha, double beta, int n_threads, bool white)
+double minMaxIterationParallel(thc::ChessRules cr, thc::Move &best_move, int curr_depth, int max_depth, double alpha, double beta, int n_threads, bool white)
 {
     parallel_call_count += 1;
     if (curr_depth == 0)
@@ -223,14 +223,26 @@ double minMaxIterationParallel(thc::ChessRules cr, thc::Move &best_move, int cur
 
     thc::Move local_best_move = best_move;
     volatile bool flag = false;
-    #pragma omp parallel for default(shared) private(local_best_move) num_threads(n_threads)
+
+    int n_workers = n_threads;
+    if (curr_depth == max_depth) {
+        n_workers = 2;
+    }
+    else if (curr_depth == max_depth - 1) {
+        n_workers = n_threads / 2;
+    }
+    else {
+        n_workers = 1;
+    }
+
+    #pragma omp parallel for default(shared) private(local_best_move) num_threads(n_workers)
     for (int i = 0; i < legal_moves.count; i++)
     {
         if (flag) continue;
 
         thc::ChessRules local_cr = cr;
         local_cr.PushMove(legal_moves.moves[i]);
-        double curr_score = minMaxIteration(local_cr, local_best_move, curr_depth - 1, alpha, beta, !white);
+        double curr_score = minMaxIterationParallel(local_cr, local_best_move, curr_depth - 1, max_depth, alpha, beta, n_threads, !white);
         local_cr.PopMove(legal_moves.moves[i]);
         #pragma omp critical
         {
@@ -260,8 +272,7 @@ double minMaxIterationParallel(thc::ChessRules cr, thc::Move &best_move, int cur
 
 void getMinMaxMoveParallel(thc::ChessRules &cr, thc::Move &best_move, int max_depth, int n_threads, bool white)
 {
-    
-    double best_eval = minMaxIterationParallel(cr, best_move, max_depth, DBL_MIN, DBL_MAX, n_threads, white);
+    double best_eval = minMaxIterationParallel(cr, best_move, max_depth, max_depth, DBL_MIN, DBL_MAX, n_threads, white);
     printf("Best move for %s has evaluation %lf\n", (white) ? "WHITE": "BLACK", best_eval);
 }
 
