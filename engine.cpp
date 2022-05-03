@@ -108,7 +108,7 @@ static void display_position( thc::ChessRules &cr, const std::string &descriptio
     printf( "Position = %s\n", s.c_str() );
 }
 
-double getGreedyMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, double alpha, double beta, bool white)
+double getGreedyMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, bool white)
 {
     thc::MOVELIST legal_moves;
     cr.GenLegalMoveList(&legal_moves);
@@ -125,21 +125,18 @@ double getGreedyMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, d
         cr.PushMove(legal_moves.moves[i]);
         curr_score = evaluatePositionFast(cr);
         cr.PopMove(legal_moves.moves[i]);
-        if (white && (best_score < curr_score))
-        {
-            best_move_idx = i;
-            best_score = curr_score;
-            alpha = (best_score > alpha) ? best_score : alpha;
+        if (white)
+        {   
+            if (best_score < curr_score)
+            {
+                best_move_idx = i;
+                best_score = curr_score;
+            }
         }
         if (!white && (best_score > curr_score))
         {
             best_move_idx = i;
             best_score = curr_score;
-            beta = (best_score < beta) ? best_score : beta;
-        }
-        if (beta <= alpha)
-        {
-            break;
         }
     }
     best_move = legal_moves.moves[best_move_idx];
@@ -157,7 +154,7 @@ double minMaxIteration(thc::ChessRules &cr, thc::Move &best_move, int curr_depth
     minmax_call_count += 1;
     if (curr_depth == 0)
     {
-        return getGreedyMove(cr, best_move, 0, alpha, beta, white);
+        return getGreedyMove(cr, best_move, 0, white);
     }
 
     thc::MOVELIST legal_moves;
@@ -170,27 +167,38 @@ double minMaxIteration(thc::ChessRules &cr, thc::Move &best_move, int curr_depth
 
     // printf("Curr depth: %d, %d legal moves\n", curr_depth, legal_moves.count);
 
-    for (int i = 0; i < legal_moves.count; i++)
+    if (white) // max
     {
-        cr.PushMove(legal_moves.moves[i]);
-        curr_score = minMaxIteration(cr, best_move, curr_depth - 1, alpha, beta, !white);
-        cr.PopMove(legal_moves.moves[i]);
-        if (white && (best_score < curr_score))
+        for (int i = 0; i < legal_moves.count; i++)
         {
-            best_move_idx = i;
-            best_score = curr_score;
-            alpha = (best_score > alpha) ? best_score : alpha;
+            cr.PushMove(legal_moves.moves[i]);
+            curr_score = minMaxIteration(cr, best_move, curr_depth - 1, alpha, beta, !white);
+            cr.PopMove(legal_moves.moves[i]);
+            if (best_score < curr_score)
+            {
+                best_move_idx = i;
+                best_score = curr_score;
+                alpha = (best_score > alpha) ? best_score : alpha;
+            }
+            if (best_score >= beta)
+                break;
         }
-        if (!white && (best_score > curr_score))
+    }
+    else // min
+    {
+        for (int i = 0; i < legal_moves.count; i++)
         {
-            best_move_idx = i;
-            best_score = curr_score;
-            beta = (best_score < beta) ? best_score : beta;
-        }
-        if (beta <= alpha)
-        {
-            // printf("Depth %d: Pruning with beta=%lf, alpha=%lf\n", curr_depth, beta, alpha);
-            break;
+            cr.PushMove(legal_moves.moves[i]);
+            curr_score = minMaxIteration(cr, best_move, curr_depth - 1, alpha, beta, !white);
+            cr.PopMove(legal_moves.moves[i]);
+            if (best_score > curr_score)
+            {
+                best_move_idx = i;
+                best_score = curr_score;
+                beta = (best_score < beta) ? best_score : beta;
+            }
+            if (best_score <= alpha)
+                break;
         }
     }
 
@@ -209,7 +217,7 @@ double minMaxIterationParallel(thc::ChessRules cr, thc::Move &best_move, int cur
     parallel_call_count += 1;
     if (curr_depth == 0)
     {
-        return getGreedyMove(cr, best_move, 0, alpha, beta, white);
+        return getGreedyMove(cr, best_move, 0, white);
     }
 
     thc::MOVELIST legal_moves;
@@ -223,33 +231,53 @@ double minMaxIterationParallel(thc::ChessRules cr, thc::Move &best_move, int cur
 
     thc::Move local_best_move = best_move;
     volatile bool flag = false;
-    #pragma omp parallel for default(shared) private(local_best_move) num_threads(n_threads)
-    for (int i = 0; i < legal_moves.count; i++)
+    if (white) // max
     {
-        if (flag) continue;
-
-        thc::ChessRules local_cr = cr;
-        local_cr.PushMove(legal_moves.moves[i]);
-        double curr_score = minMaxIteration(local_cr, local_best_move, curr_depth - 1, alpha, beta, !white);
-        local_cr.PopMove(legal_moves.moves[i]);
-        #pragma omp critical
+        #pragma omp parallel for default(shared) private(local_best_move) num_threads(n_threads)
+        for (int i = 0; i < legal_moves.count; i++)
         {
-            if (white && (best_score < curr_score))
+            if (flag)
+                continue;
+
+            thc::ChessRules local_cr = cr;
+            local_cr.PushMove(legal_moves.moves[i]);
+            double curr_score = minMaxIteration(local_cr, local_best_move, curr_depth - 1, alpha, beta, !white);
+            local_cr.PopMove(legal_moves.moves[i]);
+            #pragma omp critical
             {
-                best_move_idx = i;
-                best_score = curr_score;
-                alpha = (best_score > alpha) ? best_score : alpha;
+                if (best_score < curr_score)
+                {
+                    best_move_idx = i;
+                    best_score = curr_score;
+                    alpha = (best_score > alpha) ? best_score : alpha;
+                }
+                if (best_score >= beta)
+                    flag = true;
             }
-            if (!white && (best_score > curr_score))
+        }
+    }
+    else // min
+    {
+        #pragma omp parallel for default(shared) private(local_best_move) num_threads(n_threads)
+        for (int i = 0; i < legal_moves.count; i++)
+        {
+            if (flag)
+                continue;
+
+            thc::ChessRules local_cr = cr;
+            local_cr.PushMove(legal_moves.moves[i]);
+            double curr_score = minMaxIteration(local_cr, local_best_move, curr_depth - 1, alpha, beta, !white);
+            local_cr.PopMove(legal_moves.moves[i]);
+            #pragma omp critical
             {
-                best_move_idx = i;
-                best_score = curr_score;
-                beta = (best_score < beta) ? best_score : beta;
-            }
-            if (beta <= alpha)
-            {
-                // printf("Depth %d: Pruning with beta=%lf, alpha=%lf\n", curr_depth, beta, alpha);
-                flag = true;
+                if (best_score > curr_score)
+                {
+                    best_move_idx = i;
+                    best_score = curr_score;
+                    beta = (best_score < beta) ? best_score : beta;
+                }
+                if (best_score <= alpha)
+                    flag = true;
             }
         }
     }
@@ -278,7 +306,7 @@ void getBestMove(thc::ChessRules &cr, thc::Move &best_move, int engine_mode, int
     if (engine_mode == RANDOM_MOVE)
         getRandomMove(cr, best_move, max_depth, white);
     else if (engine_mode == GREEDY_MOVE)
-        getGreedyMove(cr, best_move, max_depth, DBL_MIN, DBL_MAX, white);
+        getGreedyMove(cr, best_move, max_depth, white);
     else if (engine_mode == MINMAX_MOVE)
         getMinMaxMove(cr, best_move, max_depth, white);
     else
