@@ -118,8 +118,8 @@ double getGreedyMove(thc::ChessRules &cr, thc::Move &best_move, int max_depth, d
     double curr_score;
 
     // display_position(cr, "Position passed to getGreedyMove");
-
-    for (int i = 0; i < legal_moves.count; i++)
+    int i;
+    for (i = 0; i < legal_moves.count; i++)
     {
         cr.PushMove(legal_moves.moves[i]);
         curr_score = evaluatePositionFast(cr);
