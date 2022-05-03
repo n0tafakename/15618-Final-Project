@@ -224,15 +224,9 @@ double minMaxIterationParallel(thc::ChessRules cr, thc::Move &best_move, int cur
     thc::Move local_best_move = best_move;
     volatile bool flag = false;
 
-    int n_workers = n_threads;
-    if (curr_depth == max_depth) {
-        n_workers = 2;
-    }
-    else if (curr_depth == max_depth - 1) {
-        n_workers = n_threads / 2;
-    }
-    else {
-        n_workers = 1;
+    int n_workers = 1;
+    if (curr_depth == max_depth - 2) {
+        n_workers = n_threads;
     }
 
     #pragma omp parallel for default(shared) private(local_best_move) num_threads(n_workers)
