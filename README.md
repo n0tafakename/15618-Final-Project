@@ -46,3 +46,7 @@ My remaining goals before the final presentation are -
 * Improve the leaf evaluation function to incorporate piece mobility for better solution quality when pieces can not be easily taken. This is a simple count of the available moves the AI will have after playing a move. This is costly but can be parallelized.
 * Parallelize the minimax algorithm using OpenMP, identify performance bottlenecks, and attempt to optimize.
 * Create an evaluation environment for the AI. I'm thinking that I'll have a few different fixed board positions and measure the time taken to compute the next move at various depths. An interesting, but less qualitative measure, could be having the AI play against players of various skill levels and recording the results.
+
+
+# Final Presentation Video
+https://www.youtube.com/watch?v=QAK_cr8-kR4
